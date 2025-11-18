@@ -1,0 +1,211 @@
+{\rtf1\ansi\ansicpg949\cocoartf2865
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 <!DOCTYPE html>\
+<html lang="ko">\
+<head>\
+    <meta charset="UTF-8">\
+    <title>\uc0\u47336 \u54004  \u53440 \u51060 \u47672  \u50948 \u51247 </title>\
+    <style>\
+    .routine-widget \{\
+  width: 300px;\
+  padding: 20px;\
+  background-color: #e9f7ef; /* \uc0\u50672 \u54620  \u48124 \u53944  \u48176 \u44221  */\
+  border-radius: 15px;\
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);\
+  text-align: center;\
+  font-family: 'Noto Sans KR', sans-serif;\
+\}\
+\
+#currentTaskTitle \{\
+  font-size: 1.5em;\
+  color: #2c3e50;\
+  margin-bottom: 10px;\
+\}\
+\
+.timer-display \{\
+  font-size: 4em;\
+  font-weight: bold;\
+  color: #3498db; /* \uc0\u54028 \u46976 \u49353  \u53440 \u51060 \u47672  */\
+  margin-bottom: 20px;\
+\}\
+\
+.controls \{\
+  display: flex;\
+  justify-content: space-around;\
+  margin-bottom: 15px;\
+\}\
+\
+.control-btn \{\
+  padding: 10px 15px;\
+  border: none;\
+  border-radius: 8px;\
+  font-size: 1em;\
+  cursor: pointer;\
+  font-weight: 500;\
+  transition: background-color 0.2s;\
+\}\
+\
+#startStopBtn \{\
+  background-color: #2ecc71; /* \uc0\u52488 \u47197 \u49353  */\
+  color: white;\
+\}\
+\
+#checkBtn \{\
+  background-color: #3498db; /* \uc0\u54028 \u46976 \u49353  */\
+  color: white;\
+\}\
+\
+.next-task \{\
+  font-size: 0.9em;\
+  color: #7f8c8d;\
+\}\
+    </style>\
+</head>\
+<body>\
+\
+    <div class="routine-widget">\
+        </div>\
+    \
+    <script>\
+// ==========================================================\
+// \uc0\u55357 \u57000  Google Sheet ID \u49444 \u51221  \u55357 \u57000 \
+// ==========================================================\
+const SHEET_ID = '1qldoMY1EZzjbREa26MdLuW7GH_t5OkqvP5Bysd62hRo'; \
+const SHEET_NAME = 'Sheet1'; \
+\
+// URL \uc0\u48320 \u49688  \u51221 \u51032  (\u51060 \u51204  \u53076 \u46300 \u50640 \u49436  \u45572 \u46973 \u46108  \u48512 \u48516 )\
+const URL = `https://docs.google.com/spreadsheets/d/$\{SHEET_ID\}/gviz/tq?tqx=out:json&sheet=$\{SHEET_NAME\}`;\
+\
+\
+// ==========================================================\
+// \uc0\u55357 \u56481  DOM \u50836 \u49548  \u48143  \u49345 \u53468  \u48320 \u49688 \
+// ==========================================================\
+const display = document.getElementById('display');\
+const startStopBtn = document.getElementById('startStopBtn');\
+const checkBtn = document.getElementById('checkBtn');\
+const currentTaskTitle = document.getElementById('currentTaskTitle');\
+const nextTaskInfo = document.getElementById('nextTaskInfo');\
+\
+let routineList = []; \
+let currentTaskIndex = 0;\
+let timer;\
+let isRunning = false;\
+let remainingTime;\
+\
+\
+// ==========================================================\
+// \uc0\u55357 \u56481  \u45936 \u51060 \u53552  \u47196 \u46300  \u48143  \u52488 \u44592 \u54868  \u54632 \u49688 \
+// ==========================================================\
+async function loadRoutineData() \{\
+    try \{\
+        const response = await fetch(URL);\
+        const data = await response.text();\
+        \
+        // JSON \uc0\u51025 \u45813  \u54028 \u49905 \
+        const jsonText = data.substring(data.indexOf('(') + 1, data.lastIndexOf(')'));\
+        const json = JSON.parse(jsonText);\
+        const rows = json.table.rows;\
+        \
+        routineList = rows.map(row => (\{\
+            name: row.c[0].v, // A\uc0\u50676  (\u54624  \u51068  \u51060 \u47492 )\
+            duration: row.c[1].v * 60 // B\uc0\u50676  (\u48516  \u45800 \u50948  -> \u52488  \u45800 \u50948 \u47196  \u48320 \u54872 )\
+        \})).filter(task => task.name && task.duration > 0); \
+\
+        console.log("\uc0\u47336 \u54004  \u45936 \u51060 \u53552  \u47196 \u46300  \u49457 \u44277 :", routineList);\
+        initializeTask(); // \uc0\u45936 \u51060 \u53552  \u47196 \u46300  \u54980  \u52488 \u44592  \u51089 \u50629  \u49884 \u51089 \
+        \
+    \} catch (error) \{\
+        console.error("\uc0\u45936 \u51060 \u53552  \u47196 \u46300  \u49892 \u54056 . \u49884 \u53944  ID\u50752  \u44277 \u44060  \u49444 \u51221 \u51012  \u54869 \u51064 \u54616 \u49464 \u50836 .", error);\
+        currentTaskTitle.textContent = "\uc0\u45936 \u51060 \u53552  \u47196 \u46300  \u49892 \u54056 !";\
+        nextTaskInfo.textContent = "\uc0\u49884 \u53944  \u49444 \u51221  \u54869 \u51064  \u54596 \u50836 .";\
+    \}\
+\}\
+\
+function initializeTask() \{\
+    if (currentTaskIndex < routineList.length) \{\
+        const task = routineList[currentTaskIndex];\
+        currentTaskTitle.textContent = task.name;\
+        remainingTime = task.duration;\
+        display.textContent = formatTime(remainingTime);\
+        updateNextTaskInfo();\
+        startStopBtn.disabled = false;\
+        checkBtn.disabled = false;\
+    \} else \{\
+        currentTaskTitle.textContent = "\uc0\u47336 \u54004  \u50756 \u47308 !";\
+        display.textContent = "DONE";\
+        startStopBtn.disabled = true;\
+        checkBtn.disabled = true;\
+        nextTaskInfo.textContent = '\uc0\u47784 \u46304  \u47336 \u54004  \u50756 \u47308 !';\
+    \}\
+\}\
+\
+// ==========================================================\
+// \uc0\u55357 \u56481  \u53440 \u51060 \u47672  \u51089 \u46041  \u48143  \u51228 \u50612  \u54632 \u49688 \
+// ==========================================================\
+\
+function formatTime(seconds) \{\
+    const minutes = Math.floor(seconds / 60);\
+    const secs = seconds % 60;\
+    return `$\{minutes < 10 ? '0' : ''\}$\{minutes\}:$\{secs < 10 ? '0' : ''\}$\{secs\}`;\
+\}\
+\
+function updateNextTaskInfo() \{\
+    if (currentTaskIndex + 1 < routineList.length) \{\
+        const nextTask = routineList[currentTaskIndex + 1];\
+        nextTaskInfo.textContent = `\uc0\u45796 \u51020  \u54624  \u51068 : $\{nextTask.name\} ($\{Math.floor(nextTask.duration / 60)\}\u48516 )`;\
+    \} else \{\
+        nextTaskInfo.textContent = '\uc0\u47784 \u46304  \u47336 \u54004  \u50756 \u47308 !';\
+    \}\
+\}\
+\
+function startStopTimer() \{\
+    if (isRunning) \{\
+        clearInterval(timer);\
+        isRunning = false;\
+        startStopBtn.textContent = '\uc0\u51116 \u44060 ';\
+    \} else if (remainingTime > 0) \{\
+        isRunning = true;\
+        startStopBtn.textContent = '\uc0\u51221 \u51648 ';\
+\
+        timer = setInterval(() => \{\
+            remainingTime--;\
+            display.textContent = formatTime(remainingTime);\
+\
+            if (remainingTime <= 0) \{\
+                clearInterval(timer);\
+                isRunning = false;\
+                alert(`$\{routineList[currentTaskIndex].name\} \uc0\u49884 \u44036 \u51060  \u51333 \u47308 \u46104 \u50632 \u49845 \u45768 \u45796 !`);\
+                startStopBtn.textContent = '\uc0\u49884 \u51089 ';\
+            \}\
+        \}, 1000);\
+    \}\
+\}\
+\
+function moveToNextTask() \{\
+    clearInterval(timer);\
+    isRunning = false;\
+    startStopBtn.textContent = '\uc0\u49884 \u51089 ';\
+    \
+    currentTaskIndex++;\uc0\u12615 \
+    \
+    initializeTask();\
+\}\
+\
+\
+// ==========================================================\
+// \uc0\u55357 \u56481  \u51060 \u48292 \u53944  \u47532 \u49828 \u45320  \u48143  \u49884 \u51089 \
+// ==========================================================\
+\
+startStopBtn.addEventListener('click', startStopTimer);\
+checkBtn.addEventListener('click', moveToNextTask);\
+\
+// \uc0\u50948 \u51247  \u52488 \u44592 \u54868  \u45824 \u49888  \u45936 \u51060 \u53552  \u47196 \u46300  \u49884 \u51089 \
+loadRoutineData();\
+    </script>\
+</body>\
+</html>}
